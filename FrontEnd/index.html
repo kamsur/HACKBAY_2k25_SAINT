@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>S.A.I.N.T</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            font-family: Arial, sans-serif;
+            position: relative;
+        }
+
+        .sidebar {
+            width: 33%;
+            background: #ccc;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .main-area {
+            width: 67%;
+            background: #f5f5f5;
+            padding: 10px;
+            position: relative;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .main-area h1 {
+            text-align: center;
+            margin: 0 0 20px 0;
+            font-size: 2em;
+            user-select: none;
+            z-index: 2;
+            position: relative;
+            width: 100%;
+        }
+
+        .section {
+            flex: 1;
+            background: #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 8px;
+            position: relative;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            width: 100%;
+            user-select: none;
+            background: #007bff;
+            color: white;
+            padding: 6px 8px;
+            border-radius: 6px;
+        }
+
+        .floating-panel {
+            width: 135px;
+            height: 135px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            user-select: none;
+            position: relative;
+            z-index: 2;
+            flex-shrink: 0;
+            overflow: hidden;
+            transition: transform 0.2s ease;
+            text-align: center;
+            padding: 5px;
+        }
+
+        .floating-panel:hover {
+            transform: scale(1.05);
+        }
+
+        .floating-panel img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+
+        .dragging {
+            position: absolute !important;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        #connection-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #runButton {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #007bff;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 20px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+            user-select: none;
+            transition: background-color 0.3s ease;
+            z-index: 9999;
+        }
+
+        #runButton:hover {
+            background: #0056b3;
+        }
+
+        /* Custom context menu */
+        .context-menu {
+            position: absolute;
+            z-index: 9999;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            display: none;
+        }
+
+        .context-menu ul {
+            list-style: none;
+            margin: 0;
+            padding: 6px 0;
+        }
+
+        .context-menu li {
+            padding: 8px 20px;
+            cursor: pointer;
+        }
+
+        .context-menu li:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="section" id="agentsSection">
+            <div class="section-title">Agents</div>
+        </div>
+        <div class="section" id="toolsSection">
+            <div class="section-title">Tools</div>
+        </div>
+    </div>
+
+    <div class="main-area" id="mainArea">
+        <h1>S.A.I.N.T</h1>
+        <svg id="connection-svg"></svg>
+    </div>
+
+    <button id="runButton">Run</button>
+
+    <div class="context-menu" id="contextMenu">
+        <ul>
+            <li id="chatOption">Chat</li>
+        </ul>
+    </div>
+
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script>
+        const mainArea = document.getElementById('mainArea');
+        const agentsSection = document.getElementById('agentsSection');
+        const toolsSection = document.getElementById('toolsSection');
+        const svg = document.getElementById('connection-svg');
+        const runButton = document.getElementById('runButton');
+        const contextMenu = document.getElementById('contextMenu');
+        const chatOption = document.getElementById('chatOption');
+        let rightClickedPanel = null;
+
+        const CONNECTION_DISTANCE = 300;
+
+        // QWebChannel integration
+        let agentBridge = null;
+        if (typeof qt !== 'undefined') {
+            new QWebChannel(qt.webChannelTransport, function (channel) {
+                agentBridge = channel.objects.agentBridge;
+            });
+        }
+
+        function createFloatingPanel(label, container, isAgent, iconSrc = '') {
+            const panel = document.createElement('div');
+            panel.className = 'floating-panel';
+            panel.dataset.type = isAgent ? 'agent' : 'tool';
+
+            if (iconSrc) {
+                const img = document.createElement('img');
+                img.src = iconSrc;
+                img.alt = label;
+                panel.appendChild(img);
+            }
+
+            container.appendChild(panel);
+
+            let offsetX = 0, offsetY = 0, isDragging = false;
+            let dragElement = null;
+
+            panel.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                const rect = panel.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                isDragging = true;
+
+                const fromSidebar = (container === agentsSection || container === toolsSection);
+
+                if (fromSidebar) {
+                    dragElement = panel.cloneNode(true);
+                    dragElement.classList.add('dragging');
+                    dragElement.style.left = `${rect.left}px`;
+                    dragElement.style.top = `${rect.top}px`;
+                    dragElement.style.position = 'absolute';
+                    document.body.appendChild(dragElement);
+                } else {
+                    dragElement = panel;
+                    dragElement.classList.add('dragging');
+                    dragElement.style.position = 'absolute';
+                    dragElement.style.left = `${rect.left}px`;
+                    dragElement.style.top = `${rect.top}px`;
+                    mainArea.appendChild(dragElement);
+                }
+
+                const move = (moveEvent) => {
+                    if (!isDragging) return;
+                    dragElement.style.left = `${moveEvent.clientX - offsetX}px`;
+                    dragElement.style.top = `${moveEvent.clientY - offsetY}px`;
+                    updateConnections();
+                };
+
+                const up = (upEvent) => {
+                    isDragging = false;
+                    document.removeEventListener('mousemove', move);
+                    document.removeEventListener('mouseup', up);
+
+                    const mainRect = mainArea.getBoundingClientRect();
+                    const inMainArea =
+                        upEvent.clientX >= mainRect.left &&
+                        upEvent.clientX <= mainRect.right &&
+                        upEvent.clientY >= mainRect.top &&
+                        upEvent.clientY <= mainRect.bottom;
+
+                    if (inMainArea) {
+                        const newLeft = upEvent.clientX - mainRect.left - offsetX;
+                        const newTop = upEvent.clientY - mainRect.top - offsetY;
+
+                        if (fromSidebar) {
+                            dragElement.style.left = `${newLeft}px`;
+                            dragElement.style.top = `${newTop}px`;
+                            dragElement.classList.remove('dragging');
+                            dragElement.style.position = 'absolute';
+                            mainArea.appendChild(dragElement);
+                            attachDragToPanel(dragElement);
+                        } else {
+                            dragElement.style.left = `${newLeft}px`;
+                            dragElement.style.top = `${newTop}px`;
+                            dragElement.classList.remove('dragging');
+                        }
+                    } else {
+                        if (fromSidebar) dragElement.remove();
+                        else dragElement.classList.remove('dragging');
+                    }
+
+                    updateConnections();
+                };
+
+                document.addEventListener('mousemove', move);
+                document.addEventListener('mouseup', up);
+            });
+
+            return panel;
+        }
+
+        function attachDragToPanel(panel) {
+            let offsetX = 0, offsetY = 0, isDragging = false;
+            panel.style.cursor = 'grab';
+
+            panel.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                isDragging = true;
+                const rect = panel.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                panel.classList.add('dragging');
+                panel.style.position = 'absolute';
+
+                const move = (moveEvent) => {
+                    if (!isDragging) return;
+                    const mainRect = mainArea.getBoundingClientRect();
+                    panel.style.left = `${moveEvent.clientX - offsetX - mainRect.left}px`;
+                    panel.style.top = `${moveEvent.clientY - offsetY - mainRect.top}px`;
+                    updateConnections();
+                };
+
+                const up = () => {
+                    isDragging = false;
+                    panel.classList.remove('dragging');
+                    document.removeEventListener('mousemove', move);
+                    document.removeEventListener('mouseup', up);
+                    updateConnections();
+                };
+
+                document.addEventListener('mousemove', move);
+                document.addEventListener('mouseup', up);
+            });
+
+            // Right-click context menu for agents
+            panel.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (panel.dataset.type === 'agent') {
+                    rightClickedPanel = panel;
+                    contextMenu.style.top = `${e.clientY}px`;
+                    contextMenu.style.left = `${e.clientX}px`;
+                    contextMenu.style.display = 'block';
+                }
+            });
+        }
+
+        function drawArrow(x1, y1, x2, y2) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('stroke', '#333');
+            line.setAttribute('stroke-width', '2');
+            line.setAttribute('marker-end', 'url(#arrowhead)');
+            return line;
+        }
+
+        function updateConnections() {
+            while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrowhead');
+            marker.setAttribute('markerWidth', '10');
+            marker.setAttribute('markerHeight', '7');
+            marker.setAttribute('refX', '10');
+            marker.setAttribute('refY', '3.5');
+            marker.setAttribute('orient', 'auto');
+            marker.setAttribute('fill', '#333');
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            const panels = Array.from(mainArea.querySelectorAll('.floating-panel'));
+            const mainRect = mainArea.getBoundingClientRect();
+
+            function getCenter(panel) {
+                const r = panel.getBoundingClientRect();
+                return {
+                    x: r.left - mainRect.left + r.width / 2,
+                    y: r.top - mainRect.top + r.height / 2
+                };
+            }
+
+            const agents = panels.filter(p => p.dataset.type === 'agent');
+            const tools = panels.filter(p => p.dataset.type === 'tool');
+
+            agents.forEach((agent1, i) => {
+                const c1 = getCenter(agent1);
+                agents.forEach((agent2, j) => {
+                    if (i === j) return;
+                    const c2 = getCenter(agent2);
+                    const dist = Math.hypot(c1.x - c2.x, c1.y - c2.y);
+                    if (dist < CONNECTION_DISTANCE) {
+                        svg.appendChild(drawArrow(c1.x, c1.y, c2.x, c2.y));
+                    }
+                });
+            });
+
+            tools.forEach(tool => {
+                const cTool = getCenter(tool);
+                let nearestAgent = null;
+                let nearestDist = Infinity;
+
+                agents.forEach(agent => {
+                    const cAgent = getCenter(agent);
+                    const dist = Math.hypot(cTool.x - cAgent.x, cTool.y - cAgent.y);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestAgent = cAgent;
+                    }
+                });
+
+                if (nearestAgent && nearestDist < CONNECTION_DISTANCE) {
+                    svg.appendChild(drawArrow(cTool.x, cTool.y, nearestAgent.x, nearestAgent.y));
+                }
+            });
+        }
+
+        document.addEventListener('click', () => {
+            contextMenu.style.display = 'none';
+        });
+
+        chatOption.addEventListener('click', () => {
+            contextMenu.style.display = 'none';
+            if (rightClickedPanel) {
+                const altText = rightClickedPanel.querySelector('img')?.alt;
+                switch (altText) {
+                    case "Agent 1":
+                        // Action for Agent 1
+                        if (agentBridge) {
+                            agentBridge.trigger_agent('1');
+                        } else {
+                            alert('Agent bridge not available.');
+                        }
+                        break;
+                    case "Agent 2":
+                        // Action for Agent 2
+                        if (agentBridge) {
+                            agentBridge.trigger_agent('2');
+                        } else {
+                            alert('Agent bridge not available.');
+                        }
+                        break;
+                    case "Agent 3":
+                        // Action for Agent 3
+                        if (agentBridge) {
+                            agentBridge.trigger_agent('3');
+                        } else {
+                            alert('Agent bridge not available.');
+                        }
+                        break;
+                    case "Agent 4":
+                        // Action for Agent 4
+                        if (agentBridge) {
+                            agentBridge.trigger_agent('4');
+                        } else {
+                            alert('Agent bridge not available.');
+                        }
+                        break;
+                    case "Agent 5":
+                        // Action for Agent 5
+                        if (agentBridge) {
+                            agentBridge.trigger_agent('5');
+                        } else {
+                            alert('Agent bridge not available.');
+                        }
+                        break;
+                    default:
+                        alert(`Unknown agent: ${altText}`);
+                        break;
+                }
+            }
+        });
+
+
+        createFloatingPanel("Agent 1", agentsSection, true, "./Icons/product_manager_icon.png");
+        createFloatingPanel("Agent 2", agentsSection, true, "./Icons/software_developer_icon.png");
+        createFloatingPanel("Agent 3", agentsSection, true, "./Icons/software_tester_icon.png");
+        createFloatingPanel("Agent 4", agentsSection, true, "./Icons/code optimizer_icon.png");
+        createFloatingPanel("Agent 5", agentsSection, true, "./Icons/compliance_manager_icon.png");
+
+        createFloatingPanel("Tool 1", toolsSection, false, "./Icons/github_icon.png");
+        createFloatingPanel("Tool 2", toolsSection, false, "./Icons/sqlite_icon.png");
+        createFloatingPanel("Tool 3", toolsSection, false, "./Icons/internet_icon.png");
+        // createFloatingPanel("Tool 4", toolsSection, false, "./Icons/github_actions_icon.png");
+        createFloatingPanel("Tool 5", toolsSection, false, "./Icons/chromadb_icon.png");
+        createFloatingPanel("Tool 6", toolsSection, false, "./Icons/documentation_icon.png");
+
+        runButton.addEventListener('click', () => {
+            if (agentBridge) {
+                agentBridge.trigger_agent('God-Mode');
+            } else {
+                alert('Agent bridge not available.');
+            }
+        });
+    </script>
+</body>
+
+</html>

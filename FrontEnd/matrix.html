@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Matrix Effect</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #0f1812;
+            overflow: hidden;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        canvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .matrix-heading-row {
+            position: absolute;
+            top: 32px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 1;
+        }
+
+        .matrix-heading {
+            font-size: 3.5em;
+            color: #00ff41;
+            text-shadow: 0 0 18px #00ff41, 0 0 2px #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 0.2em 1.5em;
+            border-radius: 12px;
+            box-shadow: 0 0 24px #00ff41cc;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .matrix-gif {
+            width: 80px;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 16px #00ff41cc;
+        }
+
+        .text-panel {
+            position: absolute;
+            top: calc(32px + 3.5em + 24px); /* space from top + heading height + margin */
+            left: 50px;
+            right: 50px;
+            bottom: 50px;
+            background: rgba(0, 0, 0, 0.95);
+            color: #00ff41;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 0 18px #00ff41aa;
+            z-index: 1;
+            font-size: 1.4em;
+            text-shadow: 0 0 8px #00ff41;
+            overflow-y: auto;
+        }
+
+        .text-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+        .text-panel::-webkit-scrollbar-thumb {
+            background: #00ff41;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+
+    <div class="matrix-heading-row">
+        <div class="matrix-heading">
+            God-Mode
+            <img src="./Icons/matrix_mode.gif" alt="Matrix Mode" class="matrix-gif" />
+        </div>
+    </div>
+
+    <div class="text-panel">
+        Welcome to the God-Mode interface. All systems are operational.<br /><br />
+        This panel will display messages, logs, and interaction prompts. You can update it dynamically as needed.<br /><br />
+        Current status: Listening for commands...
+    </div>
+
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script>
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        const fontSize = 22;
+        const columns = Math.floor(width / fontSize);
+        const drops = Array(columns).fill(1);
+
+        const matrixChars = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズヅブプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(15, 24, 18, 0.15)';
+            ctx.fillRect(0, 0, width, height);
+            ctx.font = fontSize + "px 'Share Tech Mono', monospace";
+            ctx.fillStyle = '#00ff41';
+
+            for (let i = 0; i < columns; i++) {
+                const text = matrixChars[Math.floor(Math.random() * matrixChars.length)];
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+                if (drops[i] * fontSize > height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+
+            requestAnimationFrame(drawMatrix);
+        }
+
+        drawMatrix();
+
+        window.addEventListener('resize', () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        });
+
+        // Setup WebChannel to receive data from Python
+        if (typeof qt !== 'undefined') {
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                window.bridge = channel.objects.bridge;
+                bridge.dataChanged.connect(function(message) {
+                    var panel = document.querySelector('.text-panel');
+                    panel.innerHTML += '<br>' + message;
+                });
+            });
+        }
+    </script>
+</body>
+</html>

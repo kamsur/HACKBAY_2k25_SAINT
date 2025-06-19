@@ -1,0 +1,22 @@
+125.92779040336609 seconds
+[codecarbon INFO @ 14:20:46] 
+Graceful stopping: collecting and writing information.
+Please wait a few seconds...
+[codecarbon INFO @ 14:20:46] Energy consumed for RAM : 0.000348 kWh. RAM Power : 10.0 W
+[codecarbon INFO @ 14:20:46] Delta energy consumed for CPU with constant : 0.000067 kWh, power : 42.5 W
+[codecarbon INFO @ 14:20:46] Energy consumed for All CPU : 0.001482 kWh
+[codecarbon INFO @ 14:20:46] Energy consumed for all GPUs : 0.000135 kWh. Total GPU Power : 6.456608125385827 W
+[codecarbon INFO @ 14:20:46] 0.001965 kWh of electricity used since the beginning.
+[codecarbon INFO @ 14:20:46] Done!
+
+
+2.105767250061035 seconds
+[codecarbon INFO @ 14:24:38] 
+Graceful stopping: collecting and writing information.
+Please wait a few seconds...
+[codecarbon INFO @ 14:24:38] Energy consumed for RAM : 0.000006 kWh. RAM Power : 10.0 W
+[codecarbon INFO @ 14:24:38] Delta energy consumed for CPU with constant : 0.000025 kWh, power : 42.5 W
+[codecarbon INFO @ 14:24:38] Energy consumed for All CPU : 0.000025 kWh
+[codecarbon INFO @ 14:24:38] Energy consumed for all GPUs : 0.000007 kWh. Total GPU Power : 11.370628578397303 W
+[codecarbon INFO @ 14:24:38] 0.000038 kWh of electricity used since the beginning.
+[codecarbon INFO @ 14:24:38] Done!
